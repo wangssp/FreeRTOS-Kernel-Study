@@ -744,7 +744,7 @@
         pxTimer->pxCallbackFunction( ( TimerHandle_t ) pxTimer );
     }
 /*-----------------------------------------------------------*/
-
+//prvTimerTask定时器任务，用于处理定时器到期事件
     static portTASK_FUNCTION( prvTimerTask, pvParameters )
     {
         TickType_t xNextExpireTime;

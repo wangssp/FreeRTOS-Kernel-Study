@@ -3676,7 +3676,7 @@ void vTaskStartScheduler( void )
     }
     #endif /* #if ( configUSE_CORE_AFFINITY == 1 ) && ( configNUMBER_OF_CORES > 1 ) */
 
-    xReturn = prvCreateIdleTasks();
+    xReturn = prvCreateIdleTasks();//创建空闲任务，空闲任务prvIdleTask
 
     #if ( configUSE_TIMERS == 1 )
     {

@@ -4,7 +4,7 @@
 
 本文针对当前工程：FreeRTOS V11.1.0、单核、抢占式调度、开启时间片和动态内存分配。
 
-源码：[tasks.c](Z:/FreeRTOS-Kernel/src/tasks.c)、[task.h](Z:/FreeRTOS-Kernel/include/task.h)。
+源码：[tasks.c](FreeRTOS-Kernel/src/tasks.c)、[task.h](FreeRTOS-Kernel/include/task.h)。
 
 ## 一、TCB 和任务状态
 
@@ -12,6 +12,7 @@ TCB 保存任务的全部内核状态。下面只列最重要的字段：
 
 ```c
 typedef struct tskTaskControlBlock
+
 {
     volatile StackType_t * pxTopOfStack; /* 当前栈顶，必须是首成员。 */
     ListItem_t xStateListItem;           /* 就绪、延时、挂起等状态节点。 */
@@ -202,3 +203,141 @@ TCB_t 和全局链表
 - `xNextTaskUnblockTime` 减少 Tick 中断中的链表访问。
 - Pending 机制让调度器挂起期间的事件、Tick 和切换请求能够延后处理。
 - 自删除任务由空闲任务安全回收资源。
+
+## 十、自我总结
+
+### 1. 常用任务 API
+
+有关prvIdleTask函数这里，通过宏定义#define portTASK_FUNCTION(vFunction, pvParameters) void vFunction( ( void * ) pvParameters )
+
+```c
+BaseType_t xTaskCreate( TaskFunction_t pxTaskCode,
+                        const char * const pcName,
+                        const configSTACK_DEPTH_TYPE uxStackDepth,
+                        void * const pvParameters,
+                        UBaseType_t uxPriority,
+                        TaskHandle_t * const pxCreatedTask );
+
+TaskHandle_t xTaskCreateStatic( TaskFunction_t pxTaskCode,
+                                const char * const pcName,
+                                const configSTACK_DEPTH_TYPE uxStackDepth,
+                                void * const pvParameters,
+                                UBaseType_t uxPriority,
+                                StackType_t * const puxStackBuffer,
+                                StaticTask_t * const pxTaskBuffer );
+
+void vTaskDelete( TaskHandle_t xTaskToDelete );
+void vTaskDelay( const TickType_t xTicksToDelay );
+BaseType_t xTaskDelayUntil( TickType_t * const pxPreviousWakeTime,
+                            const TickType_t xTimeIncrement );
+BaseType_t xTaskAbortDelay( TaskHandle_t xTask );
+
+UBaseType_t uxTaskPriorityGet( const TaskHandle_t xTask );
+UBaseType_t uxTaskPriorityGetFromISR( const TaskHandle_t xTask );
+void vTaskPrioritySet( TaskHandle_t xTask, UBaseType_t uxNewPriority );
+
+void vTaskSuspend( TaskHandle_t xTaskToSuspend );
+void vTaskResume( TaskHandle_t xTaskToResume );
+BaseType_t xTaskResumeFromISR( TaskHandle_t xTaskToResume );
+
+void vTaskStartScheduler( void );
+void vTaskEndScheduler( void );
+void vTaskSuspendAll( void );
+BaseType_t xTaskResumeAll( void );
+
+TickType_t xTaskGetTickCount( void );
+TickType_t xTaskGetTickCountFromISR( void );
+TaskHandle_t xTaskGetCurrentTaskHandle( void );
+UBaseType_t uxTaskGetNumberOfTasks( void );
+char * pcTaskGetName( TaskHandle_t xTaskToQuery );
+BaseType_t xTaskGetSchedulerState( void );
+
+void vTaskSetTimeOutState( TimeOut_t * const pxTimeOut );
+BaseType_t xTaskCheckForTimeOut( TimeOut_t * const pxTimeOut,
+                                 TickType_t * const pxTicksToWait );
+```
+
+### 2. 常用宏定义
+
+```c
+taskYIELD()
+taskENTER_CRITICAL()
+taskEXIT_CRITICAL()
+taskDISABLE_INTERRUPTS()
+taskENABLE_INTERRUPTS()
+
+pdMS_TO_TICKS( xTimeInMs )
+vTaskDelayUntil( pxPreviousWakeTime, xTimeIncrement )
+
+xTaskNotify( xTaskToNotify, ulValue, eAction )
+xTaskNotifyIndexed( xTaskToNotify, uxIndexToNotify, ulValue, eAction )
+xTaskNotifyFromISR( xTaskToNotify, ulValue, eAction, pxHigherPriorityTaskWoken )
+xTaskNotifyWait( ulBitsToClearOnEntry, ulBitsToClearOnExit,
+                 pulNotificationValue, xTicksToWait )
+xTaskNotifyGive( xTaskToNotify )
+vTaskNotifyGiveFromISR( xTaskToNotify, pxHigherPriorityTaskWoken )
+ulTaskNotifyTake( xClearCountOnExit, xTicksToWait )
+xTaskNotifyStateClear( xTask )
+ulTaskNotifyValueClear( xTask, ulBitsToClear )
+
+tskIDLE_PRIORITY
+tskDEFAULT_INDEX_TO_NOTIFY
+taskSCHEDULER_SUSPENDED
+taskSCHEDULER_NOT_STARTED
+taskSCHEDULER_RUNNING
+portMAX_DELAY
+```
+
+### 3. 其他内核文件常调用的函数
+
+```c
+BaseType_t xTaskIncrementTick( void );
+void vTaskSwitchContext( void );
+
+void vTaskSuspendAll( void );
+BaseType_t xTaskResumeAll( void );
+void vTaskMissedYield( void );
+
+void vTaskPlaceOnEventList( List_t * const pxEventList,
+                            const TickType_t xTicksToWait );
+void vTaskPlaceOnEventListRestricted( List_t * const pxEventList,
+                                      TickType_t xTicksToWait,
+                                      const BaseType_t xWaitIndefinitely );
+void vTaskPlaceOnUnorderedEventList( List_t * pxEventList,
+                                     const TickType_t xItemValue,
+                                     const TickType_t xTicksToWait );
+BaseType_t xTaskRemoveFromEventList( const List_t * const pxEventList );
+void vTaskRemoveFromUnorderedEventList( ListItem_t * pxEventListItem,
+                                        const TickType_t xItemValue );
+TickType_t uxTaskResetEventItemValue( void );
+
+BaseType_t xTaskPriorityInherit( TaskHandle_t const pxMutexHolder );
+BaseType_t xTaskPriorityDisinherit( TaskHandle_t const pxMutexHolder );
+void vTaskPriorityDisinheritAfterTimeout( TaskHandle_t const pxMutexHolder,
+                                          UBaseType_t uxHighestPriorityWaitingTask );
+TaskHandle_t pvTaskIncrementMutexHeldCount( void );
+
+void vTaskInternalSetTimeOutState( TimeOut_t * const pxTimeOut );
+BaseType_t xTaskCheckForTimeOut( TimeOut_t * const pxTimeOut,
+                                 TickType_t * const pxTicksToWait );
+
+BaseType_t xTaskGenericNotify( TaskHandle_t xTaskToNotify,
+                               UBaseType_t uxIndexToNotify,
+                               uint32_t ulValue,
+                               eNotifyAction eAction,
+                               uint32_t * pulPreviousNotificationValue );
+BaseType_t xTaskGenericNotifyFromISR( TaskHandle_t xTaskToNotify,
+                                      UBaseType_t uxIndexToNotify,
+                                      uint32_t ulValue,
+                                      eNotifyAction eAction,
+                                      uint32_t * pulPreviousNotificationValue,
+                                      BaseType_t * pxHigherPriorityTaskWoken );
+BaseType_t xTaskGenericNotifyWait( UBaseType_t uxIndexToWaitOn,
+                                   uint32_t ulBitsToClearOnEntry,
+                                   uint32_t ulBitsToClearOnExit,
+                                   uint32_t * pulNotificationValue,
+                                   TickType_t xTicksToWait );
+void vTaskGenericNotifyGiveFromISR( TaskHandle_t xTaskToNotify,
+                                    UBaseType_t uxIndexToNotify,
+                                    BaseType_t * pxHigherPriorityTaskWoken );
+```
